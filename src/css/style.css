@@ -4,6 +4,13 @@
  */
 
 /* --- Root Background Layer --- */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+JP:wght@100..900&display=swap'); /* フォントインポート */
+
+* {
+  font-family: 'Inter', 'Noto Sans JP' !important;
+}
+
 #ytm-custom-bg {
   position: fixed;
   top: 0; left: 0;
