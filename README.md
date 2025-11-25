@@ -1,55 +1,41 @@
-# YouTube Music Modern UI for Firefox
+## YouTube Music Modern UI for Firefox
+[YouTube Music](https://music.youtube.com) のWeb版再生UIをよりモダンに変更する**Firefox 拡張機能**です。  
+[Naikaku](https://github.com/naikaku1) 氏によってChrome向けに開発された [YouTube Music Moden UI](https://github.com/naikaku1/YouTube_Music-Moden-UI) を [cashew](https://github.com/miot26) が独自にFirefox向けに改変しています。
 
-**YouTube Music の Web 版の再生UIをApple Music風の歌詞プレイヤーに変える拡張機能です。**
+<img src=".github/image/thumbnail.png" width="75%">
 
-現状、ベータ版でバグがありますのでご了承ください。
+### ✨ Features
+- **リアルタイム歌詞同期**: [LRCLIB](https://lrclib.net/) を利用した歌詞同期機能
+- **ガラスモーフィズムUI**: 半透明で浮遊感のあるガラスデザインに統一
+- **操作性**: ImmersionモードをOFFにすることでキューの確認や検索が可能
+- **読みやすいフォント**: "Inter"，"Noto Sans JP" を使用して読みやすい文字に
 
-## 特徴
+### 🛠️ Installation Guide
+この拡張機能は，Firefox「**デバッグモード**」においてのみ使用できます。  
+> [!WARNING]
+> ご利用は自己責任となります。
+#### 1. ファイルのダウンロード
+  1. [Releases](https://github.com/miot26/YTMusic-Modern-Firefox/releases) ページより，最新の `.zip` ファイルをダウンロード
+  2. ファイルを任意のフォルダに展開
+#### 2. Firefoxで読み込む
+  1. `about:debugging#/runtime/this-firefox` に移動
+  2. 「一時的な拡張機能」 の `一時的な拡張機能を読み込む` をクリック
+  3. 展開したフォルダ内の `src/manifest.json` を選択し，読み込む
+#### 3. 使用する
+  1. YouTube Musicにアクセスして曲を再生
+  2. 画面下部のコントロールバー内 `IMMERSION` をクリックしてUIを起動
 
-* **リアルタイム歌詞同期:** LrcLibとの連携により、曲に合わせて歌詞が滑らかに追従します。
-* **ガラスモーフィズムUI:** プレイヤーバーやナビゲーションバーを半透明で浮遊感のあるガラスデザインに統一。
-* **操作性:** ImmersionモードOFFで、キューの確認や検索が可能です。
+### 📱 Supported Browser
+> [!IMPORTANT]
+> Windows上で開発を行っているため，MacなどではUIに崩れが発生する可能性があります。
+- **Firefox**: 145.0.1 (November 18, 2025) on Windows 11
+- **Zen Browser**: 1.17.9b (November 24, 2025) on Windows 11
 
-## インストール方法 (Installation Guide)
+### 🚀 Disclaimer & License
+#### セキュリティと利用について
+- 本拡張機能に、利用者の個人情報やパスワードを収集する仕組みは一切含まれません。
+- 本拡張機能は、YouTube Musicの閲覧体験を向上させることを目的とした非公式の個人制作物です。
+- 本拡張機能は **MIT License** のもとで公開されています。
 
-この拡張機能は、Firefox Add-Ons 審査前の「開発者モード」でのみ利用可能です。
-
-### 1. ファイルのダウンロードと準備
-
-1.  最新の **`.zip`** ファイルをダウンロードし、解凍（展開）します。
-2.  **【重要】** ファイルを解凍してできた **フォルダ全体** を使います。
-
-### 2. Firefoxでの読み込み手順
-
-- お使いのブラウザを開きます。
-- アドレスバーに **`about:debugging#/runtime/this-firefox`** を入力します。
-- 画面右上の **「一時的な拡張機能を読み込む」** ボタンをクリックします。
-- 手順1で解凍したフォルダ内の `src/manifest.json` を選択して読み込みます。
-
-### 3. 使い方
-
-1.  YouTube Musicを開き、曲を再生します。
-2.  画面右下のコントロールバーにある **[IMMERSION]** ボタンをクリックすると、没入モードが切り替わります。
-
-## 　対応機種について
-
-* Firefoxをエンジンとする、全てのブラウザ
-  * Firefox 145.0.1 (Windows 11)
-  * Zen Browser 1.17.8b (Windows 11)
-* **ノートPCでのUI崩等が発生する**可能性があります。
-
-## ⚠️ 免責事項と貢献 (Disclaimer & License)
-
-### セキュリティと利用について
-* 本拡張機能は、利用者の個人情報やパスワードを収集する仕組みは一切含んでいません。
-* 本拡張機能は、YouTube Musicの閲覧体験を向上させることを目的とした非公式の個人制作物であり、Google LLCとは一切関係ありません。
-* 本拡張機能は **MIT License** のもとで公開されています。
-
-### 現在確認されているバグ
-* 次の曲に遷移した際、歌詞が下まで飛ばされてしまうバグ
-* 再生コントロールの、曲タイトルとアーティストが隠れてしまう問題
-
-
-
-### 貢献について
-* バグ報告や機能改善の提案は、GitHubのIssuesまたはPull Requestにていつでも歓迎します。
+#### 貢献について
+- 問題の報告や機能の改善のご提案は，GithubのIssues，Pull Requestより随時お待ちしております。
