@@ -5,10 +5,16 @@
 
 /* --- Root Background Layer --- */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+JP:wght@100..900&display=swap'); /* フォントインポート */
+@font-face {
+  font-family: "Inter";
+  src: url("../assets/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: 75% 125%;   /* opsz軸も使いたいなら追加（任意） */
+  font-display: swap;
+}
 
 * {
-  font-family: 'Inter', 'Noto Sans JP' !important;
+  font-family: '-apple-system', 'Inter', 'Noto Sans JP' !important;
 }
 
 #ytm-custom-bg {
@@ -203,7 +209,8 @@ body.ytm-custom-layout ytmusic-player-bar {
   bottom: 40px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  width: 85% !important;
+  width: 95% !important;
+  max-width: 1500px;
   height: 100px !important;
   padding: 0 40px !important;
   box-sizing: border-box;
