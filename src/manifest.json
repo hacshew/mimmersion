@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YouTube Music Modern UI for Firefox",
   "version": "0.0.1b",
-  "description": "YouTube MusicのUIをApple Music風に変更します",
+  "description": "YouTube Musicをもっと美しく",
 
   "permissions": [
     "storage",
@@ -12,8 +12,16 @@
 
   "host_permissions": [
     "https://music.youtube.com/*",
-    "https://lrclib.net/api/*"
+    "https://lrclib.net/*",
+    "https://lrchub.coreone.work/*",
+    "https://api-free.deepl.com/*",
+    "https://api.deepl.com/*"
   ],
+    
+
+  "background": {
+    "scripts": ["js/background.js"]
+  },
 
   "content_scripts": [
     {
@@ -26,10 +34,10 @@
 
   "web_accessible_resources": [
     {
-      "resources": [ 
+      "resources": [
         "assets/fonts/InterVariable.woff2"
       ],
-      "matches": [ "<all_urls>" ]
+      "matches": ["<all_urls>"]
     }
   ]
 }
