@@ -1,5 +1,7 @@
+// ローカルで編集している方へ。
+// コードを編集する前に、一度最新のファイルを取得してください。
+
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
-    // DeepL 翻訳
     if (req.type === 'TRANSLATE') {
         const { text, apiKey, targetLang } = req.payload;
         const endpoint = apiKey.endsWith(':fx')
@@ -29,7 +31,6 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         return true;
     }
 
-    // ===== 歌詞検索系ユーティリティ =====
     const normalizeArtist = (s) =>
         (s || '').toLowerCase().replace(/\s+/g, '').trim();
 
@@ -112,7 +113,6 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
             });
     };
 
-    // DynamicLyrics から LRC を作るとき用
     const formatLrcTime = (seconds) => {
         const total = Math.max(0, seconds);
         const min = Math.floor(total / 60);
@@ -124,13 +124,11 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         return `${mm}:${ss}.${cc}`;
     };
 
-    // ===== 歌詞取得 =====
     if (req.type === 'GET_LYRICS') {
         const { track, artist, youtube_url, video_id } = req.payload;
 
         console.log('[BG] GET_LYRICS', { track, artist, youtube_url, video_id });
 
-        // ★ GitHub は一切使わず、LRCHub API → LrcLib の順で見る
         const fetchFromLrchub = () => {
             return fetch('https://lrchub.coreone.work/api/lyrics', {
                 method: 'POST',
@@ -147,43 +145,39 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
                     console.log('[BG] Lyrics API JSON:', json);
                     const res = json.response || json;
 
-                    const synced = typeof res.synced_lyrics === 'string' ? res.synced_lyrics.trim() : '';
-                    const plain  = typeof res.plain_lyrics  === 'string' ? res.plain_lyrics.trim()  : '';
-
-                    if (synced) lyrics = synced;
-                    else if (plain) lyrics = plain;
-
-                    // ★ DynamicLyrics（1文字同期）も API レスポンスから取得
                     if (res.dynamic_lyrics && Array.isArray(res.dynamic_lyrics.lines) && res.dynamic_lyrics.lines.length) {
                         dynamicLines = res.dynamic_lyrics.lines;
 
-                        // synced_lyrics が無くて dynamic_lyrics だけある場合は、
-                        // DynamicLyrics から LRC を作って補完
-                        if (!lyrics) {
-                            const lrcLines = dynamicLines.map(line => {
-                                let ms = null;
-                                if (typeof line.startTimeMs === 'number') {
-                                    ms = line.startTimeMs;
-                                } else if (typeof line.startTimeMs === 'string') {
-                                    const n = Number(line.startTimeMs);
-                                    if (!Number.isNaN(n)) ms = n;
-                                }
-                                if (ms == null) return null;
+                        const lrcLines = dynamicLines.map(line => {
+                            let ms = null;
+                            if (typeof line.startTimeMs === 'number') {
+                                ms = line.startTimeMs;
+                            } else if (typeof line.startTimeMs === 'string') {
+                                const n = Number(line.startTimeMs);
+                                if (!Number.isNaN(n)) ms = n;
+                            }
+                            if (ms == null) return null;
 
-                                let text = typeof line.text === 'string' && line.text.length
-                                    ? line.text
-                                    : (Array.isArray(line.chars) ? line.chars.map(c => c.c).join('') : '');
+                            let text = '';
+                            if (typeof line.text === 'string' && line.text.length) {
+                                text = line.text;
+                            } else if (Array.isArray(line.chars)) {
+                                text = line.chars
+                                    .map(c => c.c || c.text || c.caption || '')
+                                    .join('');
+                            }
 
-                                text = (text || '').trim();
+                            text = (text || '').trim();
+                            const timeTag = `[${formatLrcTime(ms / 1000)}]`;
+                            return text ? `${timeTag} ${text}` : timeTag;
+                        }).filter(Boolean);
 
-                                const timeSec = ms / 1000;
-                                const timeTag = `[${formatLrcTime(timeSec)}]`;
-                                // 文字がなくても timeTag だけの行として残す
-                                return text ? `${timeTag} ${text}` : timeTag;
-                            }).filter(Boolean);
-
-                            lyrics = lrcLines.join('\n');
-                        }
+                        lyrics = lrcLines.join('\n');
+                    } else {
+                        const synced = typeof res.synced_lyrics === 'string' ? res.synced_lyrics.trim() : '';
+                        const plain  = typeof res.plain_lyrics  === 'string' ? res.plain_lyrics.trim()  : '';
+                        if (synced) lyrics = synced;
+                        else if (plain) lyrics = plain;
                     }
                 } catch (e) {
                     console.warn('[BG] Lyrics API response is not JSON, ignoring for LRCHub', e);
@@ -200,7 +194,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         fetchFromLrchub()
             .then(lrchubRes => {
                 if (lrchubRes.lyrics && lrchubRes.lyrics.trim()) {
-                    console.log('[BG] Using LRCHub lyrics (with dynamic_lyrics:', !!lrchubRes.dynamicLines, ')');
+                    console.log('[BG] Using LRCHub lyrics (dynamic_lyrics:', !!lrchubRes.dynamicLines, ')');
                     sendResponse({
                         success: true,
                         lyrics: lrchubRes.lyrics,
@@ -229,7 +223,6 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         return true;
     }
 
-    // ===== 翻訳取得 =====
     if (req.type === 'GET_TRANSLATION') {
         const { youtube_url, video_id, lang, langs } = req.payload;
 
@@ -285,7 +278,6 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         return true;
     }
 
-    // ===== 翻訳登録 =====
     if (req.type === 'REGISTER_TRANSLATION') {
         const { youtube_url, video_id, lang, lyrics } = req.payload;
 

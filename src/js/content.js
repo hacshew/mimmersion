@@ -1,3 +1,6 @@
+// ローカルで編集している方へ。
+// コードを編集する前に、一度最新のファイルを取得してください。
+
 (function () {
     let config = {
         deepLKey: null,
@@ -7,16 +10,15 @@
         subLang: 'en'
     };
 
-    // 歌詞が存在しなかったことを記録する専用値
     const NO_LYRICS_SENTINEL = '__NO_LYRICS__';
 
     let currentKey = null;
     let lyricsData = [];
     let hasTimestamp = false;
-    let dynamicLines = null; // DynamicLyrics.json の lines を保持
-    let lastActiveIndex = -1;     // いまアクティブな行インデックス
-    let lastTimeForChars = -1;    // 直前に処理した currentTime
-    let lyricRafId = null;        // requestAnimationFrame のID
+    let dynamicLines = null;
+    let lastActiveIndex = -1;
+    let lastTimeForChars = -1;
+    let lyricRafId = null;
 
     const ui = {
         bg: null, wrapper: null,
@@ -78,12 +80,10 @@
         }
     };
 
-    // ★ 空行を捨てない LRC パーサ
     const parseLRCInternal = (lrc) => {
         if (!lrc) return { lines: [], hasTs: false };
 
         const tagTest = /\[\d{2}:\d{2}\.\d{2,3}\]/;
-        // タグがない場合：行ごとに time: null、空行も保持
         if (!tagTest.test(lrc)) {
             const lines = lrc
                 .split(/\r?\n/)
@@ -94,7 +94,6 @@
             return { lines, hasTs: false };
         }
 
-        // タグあり LRC
         const tagExp = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/g;
         const result = [];
         let match;
@@ -112,7 +111,6 @@
                 const rawText = lrc.slice(lastIndex, match.index);
                 const cleaned = rawText.replace(/\r?\n/g, ' ');
                 const text = cleaned.trim();
-                // ★ 空でも必ず 1 行作る
                 result.push({ time: lastTime, text });
             }
 
@@ -124,7 +122,6 @@
             const rawText = lrc.slice(lastIndex);
             const cleaned = rawText.replace(/\r?\n/g, ' ');
             const text = cleaned.trim();
-            // ★ ここも空行を残す
             result.push({ time: lastTime, text });
         }
 
@@ -249,16 +246,16 @@
             <div class="ytm-upload-menu-title">歌詞アップロード</div>
             <button class="ytm-upload-menu-item" data-action="local">
                 <span class="ytm-upload-menu-item-icon">💾</span>
-                <span>ローカルフォルダーのアップロード</span>
+                <span>ローカル歌詞読み込み/ReadLyrics</span>
             </button>
             <button class="ytm-upload-menu-item" data-action="add-sync">
                 <span class="ytm-upload-menu-item-icon">✨</span>
-                <span>歌詞の同期表示を追加</span>
+                <span>歌詞同期を追加/AddTiming</span>
             </button>
             <div class="ytm-upload-menu-separator"></div>
             <button class="ytm-upload-menu-item" data-action="fix">
                 <span class="ytm-upload-menu-item-icon">✏️</span>
-                <span>歌詞の間違いを修正リクエスト</span>
+                <span>歌詞の間違いを修正/FixLyrics</span>
             </button>
         `;
         ui.btnArea.appendChild(menu);
@@ -565,7 +562,6 @@
         setupAutoHideEvents();
     }
 
-    // ★ 翻訳を行番号でそろえる（空行も保持）
     const buildAlignedTranslations = (baseLines, transLinesByLang) => {
         const alignedMap = {};
         const TOL = 0.15;
@@ -773,6 +769,7 @@
 
         if (!data && !noLyricsCached) {
             let gotLyrics = false;
+
             try {
                 const track = meta.title.replace(/\s*[\(-\[].*?[\)-]].*/, "");
                 const artist = meta.artist;
@@ -791,9 +788,11 @@
                 if (res?.success && typeof res.lyrics === 'string' && res.lyrics.trim()) {
                     data = res.lyrics;
                     gotLyrics = true;
+
                     if (Array.isArray(res.dynamicLines) && res.dynamicLines.length) {
                         dynamicLines = res.dynamicLines;
                     }
+
                     if (thisKey === currentKey) {
                         if (dynamicLines) {
                             storage.set(thisKey, {
@@ -844,15 +843,12 @@
         ui.lyrics.innerHTML = '';
         ui.lyrics.scrollTop = 0;
 
-        // ★ 空行を除いた、有効な行があるかどうかを判定
-        const hasVisibleText = Array.isArray(data) && data.some(l => l.text && l.text.trim());
-        
-        document.body.classList.toggle('ytm-no-lyrics', !hasVisibleText);
+        const hasData = Array.isArray(data) && data.length > 0;
+        document.body.classList.toggle('ytm-no-lyrics', !hasData);
         document.body.classList.toggle('ytm-has-timestamp', hasTimestamp);
         document.body.classList.toggle('ytm-no-timestamp', !hasTimestamp);
 
-        // ★ 有効な行がなければ「歌詞なし」扱い
-        if (!hasVisibleText) {
+        if (!hasData) {
             const meta = getMetadata();
             const title = meta?.title || '';
             const artist = meta?.artist || '';
@@ -867,9 +863,9 @@
                 : base;
 
             ui.lyrics.innerHTML = `
-                <div class="no-lyrics-message">
+                <div class="no-lyrics-message" style="padding:20px; opacity:0.8;">
                     <p>${infoText}</p>
-                    <p style="margin-top:20px; font-size: 14px; opacity: 0.8;">
+                    <p style="margin-top:8px;">
                         <a href="${lrchubManualUrl}"
                            target="_blank"
                            rel="noopener noreferrer">
@@ -883,10 +879,6 @@
 
         data.forEach((line, index) => {
             const row = createEl('div', '', 'lyric-line');
-            if (!line.text || !line.text.trim()) {
-                row.classList.add('empty-line');
-            }
-            
             const mainSpan = createEl('span', '', 'lyric-main');
 
             const dyn = dynamicLines && dynamicLines[index];
@@ -1075,8 +1067,7 @@
             ui.artwork.innerHTML = `<img src="${meta.src}" crossorigin="anonymous">`;
             ui.bg.style.backgroundImage = `url(${meta.src})`;
         }
-        // ★ くっきり表示クラスを使用
-        ui.lyrics.innerHTML = '<div class="lyric-loading">Loading...</div>';
+        ui.lyrics.innerHTML = '<div style="opacity:0.5; padding:20px;">Loading...</div>';
     }
 
     console.log("YTM Immersion loaded.");
