@@ -223,6 +223,8 @@ body.ytm-custom-layout ytmusic-search-box input {
   padding: 0 20pt;
   box-sizing: border-box;
   position: relative;
+  padding-top: 30vh;
+  padding-bottom: 30vh;
 }
 #my-lyrics-container::-webkit-scrollbar {
   display: none;
