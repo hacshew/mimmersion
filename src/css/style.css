@@ -381,7 +381,7 @@ body.ytm-custom-layout ytmusic-player-bar {
   transform: translateX(-50%) !important;
   width: 95% !important;
   max-width: 1500px;
-  height: 100px !important;
+  height: 87.5px !important;
   padding: 0 40px !important;
   box-sizing: border-box;
   /* Glass Background Effect */
