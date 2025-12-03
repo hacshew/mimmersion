@@ -1,6 +1,3 @@
-// ローカルで編集している方へ。
-// コードを編集する前に、一度最新のファイルを取得してください。
-
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.type === 'TRANSLATE') {
     const { text, apiKey, targetLang } = req.payload;
@@ -273,14 +270,65 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
       });
   };
 
+  const fetchFromGithub = (video_id) => {
+    if (!video_id) return Promise.resolve('');
+    const url = `https://raw.githubusercontent.com/LRCHub/${video_id}/main/README.md`;
+    console.log('[BG] GitHub fallback URL:', url);
+    return fetch(url)
+      .then(r => (r.ok ? r.text() : ''))
+      .then(text => (text || '').trim())
+      .catch(err => {
+        console.error('[BG] GitHub fallback error:', err);
+        return '';
+      });
+  };
+
+  const extractVideoIdFromUrl = (youtube_url) => {
+    if (!youtube_url) return null;
+    try {
+      const u = new URL(youtube_url);
+      if (u.hostname === 'youtu.be') {
+        const id = u.pathname.replace('/', '');
+        return id || null;
+      }
+      const v = u.searchParams.get('v');
+      return v || null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const withTimeout = (promise, ms, label) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(label || 'timeout')), ms);
+      })
+    ]);
+  };
+
   if (req.type === 'GET_LYRICS') {
-    const { track, artist, youtube_url, video_id } = req.payload;
+    const { track, artist, youtube_url, video_id } = req.payload || {};
 
     console.log('[BG] GET_LYRICS', { track, artist, youtube_url, video_id });
 
-    fetchFromLrchub(track, artist, youtube_url, video_id)
-      .then(lrchubRes => {
-        if (lrchubRes.lyrics && lrchubRes.lyrics.trim()) {
+    (async () => {
+      const timeoutMs = 30000;
+      let githubFallback = false;
+
+      try {
+        let lrchubRes = null;
+        try {
+          lrchubRes = await withTimeout(
+            fetchFromLrchub(track, artist, youtube_url, video_id),
+            timeoutMs,
+            'lrchub_timeout'
+          );
+        } catch (e) {
+          console.error('[BG] LRCHub error or timeout:', e);
+        }
+
+        if (lrchubRes && lrchubRes.lyrics && lrchubRes.lyrics.trim()) {
           console.log(
             '[BG] Using LRCHub lyrics (dynamic_lyrics:',
             !!lrchubRes.dynamicLines,
@@ -293,28 +341,70 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
             lyrics: lrchubRes.lyrics,
             dynamicLines: lrchubRes.dynamicLines || null,
             hasSelectCandidates: lrchubRes.hasSelectCandidates || false,
-            candidates: lrchubRes.candidates || []
+            candidates: lrchubRes.candidates || [],
+            githubFallback: false
           });
-          return null;
+          return;
         }
 
-        console.log('[BG] LRCHub empty, fallback to LrcLib');
-        return fetchFromLrcLib(track, artist).then(lrclibLyrics => {
-          const ok = !!(lrclibLyrics && lrclibLyrics.trim());
+        let lrclibLyrics = '';
+        try {
+          lrclibLyrics = await withTimeout(
+            fetchFromLrcLib(track, artist),
+            timeoutMs,
+            'lrclib_timeout'
+          );
+        } catch (e) {
+          console.error('[BG] LrcLib error or timeout:', e);
+        }
+
+        if (lrclibLyrics && lrclibLyrics.trim()) {
+          console.log('[BG] Using LrcLib lyrics fallback');
           sendResponse({
-            success: ok,
-            lyrics: lrclibLyrics || '',
+            success: true,
+            lyrics: lrclibLyrics,
             dynamicLines: null,
             hasSelectCandidates: false,
-            candidates: []
+            candidates: [],
+            githubFallback: false
           });
-          return null;
+          return;
+        }
+
+        const vidForGit = video_id || extractVideoIdFromUrl(youtube_url);
+        let gitLyrics = '';
+        if (vidForGit) {
+          gitLyrics = await fetchFromGithub(vidForGit);
+        }
+
+        if (gitLyrics && gitLyrics.trim()) {
+          githubFallback = true;
+          console.log('[BG] Using GitHub fallback lyrics');
+          sendResponse({
+            success: true,
+            lyrics: gitLyrics,
+            dynamicLines: null,
+            hasSelectCandidates: false,
+            candidates: [],
+            githubFallback
+          });
+          return;
+        }
+
+        console.log('[BG] No lyrics from any source');
+        sendResponse({
+          success: false,
+          lyrics: '',
+          dynamicLines: null,
+          hasSelectCandidates: false,
+          candidates: [],
+          githubFallback: false
         });
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('Lyrics API Error:', err);
-        sendResponse({ success: false, error: err.toString() });
-      });
+        sendResponse({ success: false, error: err.toString(), githubFallback: false });
+      }
+    })();
 
     return true;
   }
@@ -440,12 +530,58 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
           console.log('[BG] REGISTER_TRANSLATION JSON:', json);
           sendResponse({ success: !!json.ok, raw: json });
         } catch (e) {
-          console.warn('[BG] REGISTER_TRANSLATION non-JSON response');
+          console.warn('REGISTER_TRANSLATION non-JSON response');
           sendResponse({ success: false, error: 'Invalid JSON', raw: text });
         }
       })
       .catch(err => {
         console.error('REGISTER_TRANSLATION Error:', err);
+        sendResponse({ success: false, error: err.toString() });
+      });
+
+    return true;
+  }
+
+  if (req.type === 'SHARE_REGISTER') {
+    const { youtube_url, video_id, phrase, text, lang, time_ms, time_sec } = req.payload || {};
+    console.log('[BG] SHARE_REGISTER', { youtube_url, video_id, lang, time_ms, time_sec });
+
+    const body = {};
+    if (youtube_url) body.youtube_url = youtube_url;
+    else if (video_id) body.video_id = video_id;
+    if (phrase || text) body.phrase = phrase || text;
+    if (lang) body.lang = lang;
+
+    if (typeof time_ms === 'number') body.time_ms = time_ms;
+    else if (typeof time_sec === 'number') body.time_sec = time_sec;
+
+    if (!body.youtube_url && !body.video_id) {
+      sendResponse({ success: false, error: 'missing video_id or youtube_url' });
+      return;
+    }
+    if (!body.phrase) {
+      sendResponse({ success: false, error: 'missing phrase' });
+      return;
+    }
+
+    fetch('https://lrchub.coreone.work/api/share/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(r => r.text())
+      .then(text => {
+        try {
+          const json = JSON.parse(text);
+          console.log('[BG] SHARE_REGISTER JSON:', json);
+          sendResponse({ success: !!json.ok, data: json });
+        } catch (e) {
+          console.warn('[BG] SHARE_REGISTER non-JSON response');
+          sendResponse({ success: false, error: 'Invalid JSON', raw: text });
+        }
+      })
+      .catch(err => {
+        console.error('SHARE_REGISTER Error:', err);
         sendResponse({ success: false, error: err.toString() });
       });
 

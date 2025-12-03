@@ -1,6 +1,3 @@
-// ローカルで編集している方へ。
-// コードを編集する前に、一度最新のファイルを取得してください。
-
 (function () {
   let config = {
     deepLKey: null,
@@ -22,19 +19,25 @@
   let lastTimeForChars = -1;
   let lyricRafId = null;
 
+  let shareMode = false;
+  let shareStartIndex = null;
+  let shareEndIndex = null;
+
   const ui = {
     bg: null, wrapper: null,
     title: null, artist: null, artwork: null,
     lyrics: null, input: null, settings: null,
     btnArea: null, uploadMenu: null, deleteDialog: null,
     settingsBtn: null,
-    lyricsBtn: null
+    lyricsBtn: null,
+    shareBtn: null
   };
 
   let hideTimer = null;
   let uploadMenuGlobalSetup = false;
   let deleteDialogGlobalSetup = false;
   let settingsOutsideClickSetup = false;
+  let toastTimer = null;
 
   const handleInteraction = () => {
     if (!ui.btnArea) return;
@@ -156,6 +159,118 @@
     return kinds >= 2;
   };
 
+  const detectCharScript = (ch) => {
+    if (!ch) return 'OTHER';
+    if (/[A-Za-z]/.test(ch)) return 'LATIN';
+    if (/[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]/.test(ch)) return 'CJK';
+    if (/[\uAC00-\uD7AF]/.test(ch)) return 'HANGUL';
+    return 'OTHER';
+  };
+
+  const segmentByScript = (s) => {
+    const result = [];
+    if (!s) return result;
+    let currentScript = null;
+    let buf = '';
+    for (const ch of s) {
+      const script = detectCharScript(ch);
+      if (currentScript === null) {
+        currentScript = script;
+        buf = ch;
+      } else if (script === currentScript) {
+        buf += ch;
+      } else {
+        result.push({ script: currentScript, text: buf });
+        currentScript = script;
+        buf = ch;
+      }
+    }
+    if (buf) {
+      result.push({ script: currentScript, text: buf });
+    }
+    return result;
+  };
+
+  const shouldTranslateSegment = (script, langCode) => {
+    const lang = (langCode || '').toLowerCase();
+    if (script === 'OTHER') return false;
+
+    switch (lang) {
+      case 'ja':
+        return script === 'LATIN' || script === 'HANGUL';
+      case 'en':
+        return script === 'CJK' || script === 'HANGUL';
+      case 'ko':
+        return script === 'LATIN' || script === 'CJK';
+      default:
+        return script !== 'LATIN';
+    }
+  };
+
+  const translateMixedSegments = async (lines, indexes, langCode, targetLang) => {
+    try {
+      const segmentsToTranslate = [];
+      const perLineSegments = {};
+
+      indexes.forEach(idx => {
+        const line = lines[idx];
+        const text = (line && line.text) || '';
+        const segs = segmentByScript(text);
+        const segMeta = [];
+
+        segs.forEach(seg => {
+          if (shouldTranslateSegment(seg.script, langCode)) {
+            const translateIndex = segmentsToTranslate.length;
+            segmentsToTranslate.push(seg.text);
+            segMeta.push({ original: seg.text, translateIndex });
+          } else {
+            segMeta.push({ original: seg.text, translateIndex: null });
+          }
+        });
+
+        perLineSegments[idx] = segMeta;
+      });
+
+      if (!segmentsToTranslate.length) return null;
+
+      const res = await new Promise(resolve => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'TRANSLATE',
+            payload: { text: segmentsToTranslate, apiKey: config.deepLKey, targetLang }
+          },
+          resolve
+        );
+      });
+
+      if (!res?.success || !Array.isArray(res.translations) || res.translations.length !== segmentsToTranslate.length) {
+        return null;
+      }
+
+      const segTranslations = res.translations.map(t => t.text || '');
+      const result = {};
+
+      Object.keys(perLineSegments).forEach(key => {
+        const lineIdx = Number(key);
+        const segMeta = perLineSegments[lineIdx];
+        let rebuilt = '';
+        segMeta.forEach(seg => {
+          if (seg.translateIndex == null) {
+            rebuilt += seg.original;
+          } else {
+            rebuilt += segTranslations[seg.translateIndex] ?? seg.original;
+          }
+        });
+        result[lineIdx] = rebuilt;
+      });
+
+      return result;
+    } catch (e) {
+      console.error('DeepL mixed-line fallback failed', e);
+      return null;
+    }
+  };
+
   const dedupePrimarySecondary = (lines) => {
     if (!Array.isArray(lines)) return lines;
     lines.forEach(l => {
@@ -173,15 +288,43 @@
     if (!config.deepLKey || !lines.length) return null;
     const targetLang = resolveDeepLTargetLang(langCode);
     try {
+      const baseTexts = lines.map(l => l.text || '');
       const res = await new Promise(resolve => {
-        chrome.runtime.sendMessage({
-          type: 'TRANSLATE',
-          payload: { text: lines.map(l => l.text), apiKey: config.deepLKey, targetLang }
-        }, resolve);
+        chrome.runtime.sendMessage(
+          {
+            type: 'TRANSLATE',
+            payload: { text: baseTexts, apiKey: config.deepLKey, targetLang }
+          },
+          resolve
+        );
       });
-      if (res?.success && res.translations?.length === lines.length) {
-        return res.translations.map(t => t.text);
+
+      if (!res?.success || !Array.isArray(res.translations) || res.translations.length !== lines.length) {
+        return null;
       }
+
+      let translated = res.translations.map(t => t.text || '');
+
+      const fallbackIndexes = [];
+      for (let i = 0; i < lines.length; i++) {
+        const src = baseTexts[i];
+        const trn = translated[i];
+        if (!src) continue;
+        if (normalizeStr(src) === normalizeStr(trn) && isMixedLang(src)) {
+          fallbackIndexes.push(i);
+        }
+      }
+
+      if (fallbackIndexes.length) {
+        const mixedFallback = await translateMixedSegments(lines, fallbackIndexes, langCode, targetLang);
+        if (mixedFallback) {
+          fallbackIndexes.forEach(i => {
+            if (mixedFallback[i]) translated[i] = mixedFallback[i];
+          });
+        }
+      }
+
+      return translated;
     } catch (e) {
       console.error('DeepL failed', e);
     }
@@ -231,6 +374,21 @@
     if (cls) el.className = cls;
     if (html !== undefined && html !== null) el.innerHTML = html;
     return el;
+  };
+
+  const showToast = (text) => {
+    if (!text) return;
+    let el = document.getElementById('ytm-toast');
+    if (!el) {
+      el = createEl('div', 'ytm-toast', '', '');
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove('visible');
+    }, 5000);
   };
 
   function setupAutoHideEvents() {
@@ -830,6 +988,7 @@
     const btns = [];
 
     const lyricsBtnConfig = { txt: 'Lyrics', cls: 'lyrics-btn', click: () => { } };
+    const shareBtnConfig = { txt: 'Share', cls: 'share-btn', click: onShareButtonClick };
     const trashBtnConfig = { txt: '🗑️', cls: 'icon-btn', click: () => { } };
     const settingsBtnConfig = {
       txt: '⚙️',
@@ -837,7 +996,7 @@
       click: () => { initSettings(); ui.settings.classList.toggle('active'); }
     };
 
-    btns.push(lyricsBtnConfig, trashBtnConfig, settingsBtnConfig);
+    btns.push(lyricsBtnConfig, shareBtnConfig, trashBtnConfig, settingsBtnConfig);
 
     btns.forEach(b => {
       const btn = createEl('button', '', `ytm-glass-btn ${b.cls || ''}`, b.txt);
@@ -847,6 +1006,9 @@
       if (b === lyricsBtnConfig) {
         ui.lyricsBtn = btn;
         setupUploadMenu(btn);
+      }
+      if (b === shareBtnConfig) {
+        ui.shareBtn = btn;
       }
       if (b === trashBtnConfig) setupDeleteDialog(btn);
       if (b === settingsBtnConfig) ui.settingsBtn = btn;
@@ -930,6 +1092,10 @@
         });
 
         console.log('[CS] GET_LYRICS response:', res);
+
+        if (res?.githubFallback) {
+          showToast('APIが応答しないため、GitHubの歌詞を使用しました');
+        }
 
         if (Array.isArray(res?.candidates) && res.candidates.length) {
           lyricsCandidates = res.candidates;
@@ -1031,12 +1197,19 @@
       }
 
       row.onclick = () => {
+        if (shareMode) {
+          handleShareLineClick(index);
+          return;
+        }
         if (!hasTimestamp || line.time == null) return;
         const v = document.querySelector('video');
         if (v) v.currentTime = line.time;
       };
+
       ui.lyrics.appendChild(row);
     });
+
+    updateShareSelectionHighlight();
   }
 
   const handleUpload = (e) => {
@@ -1148,6 +1321,224 @@
     lastActiveIndex = isInterlude ? -1 : idx;
   }
 
+  function onShareButtonClick() {
+    if (!lyricsData.length) {
+      showToast('共有できる歌詞がありません');
+      return;
+    }
+    shareMode = !shareMode;
+    shareStartIndex = null;
+    shareEndIndex = null;
+    if (shareMode) {
+      document.body.classList.add('ytm-share-select-mode');
+      if (ui.shareBtn) ui.shareBtn.classList.add('share-active');
+      showToast('共有したい歌詞の開始行と終了行をクリックしてください');
+    } else {
+      document.body.classList.remove('ytm-share-select-mode');
+      if (ui.shareBtn) ui.shareBtn.classList.remove('share-active');
+    }
+    updateShareSelectionHighlight();
+  }
+
+  function handleShareLineClick(index) {
+    if (!shareMode) return;
+    if (!lyricsData.length) return;
+
+    if (shareStartIndex == null) {
+      shareStartIndex = index;
+      shareEndIndex = null;
+      updateShareSelectionHighlight();
+      return;
+    }
+
+    if (shareEndIndex == null) {
+      shareEndIndex = index;
+      updateShareSelectionHighlight();
+      finalizeShareSelection();
+      return;
+    }
+
+    shareStartIndex = index;
+    shareEndIndex = null;
+    updateShareSelectionHighlight();
+  }
+
+  function updateShareSelectionHighlight() {
+    if (!ui.lyrics) return;
+    const rows = ui.lyrics.querySelectorAll('.lyric-line');
+
+    rows.forEach(r => {
+      r.classList.remove('share-select');
+      r.classList.remove('share-select-range');
+      r.classList.remove('share-select-start');
+      r.classList.remove('share-select-end');
+    });
+
+    if (!shareMode || shareStartIndex == null || !lyricsData.length) return;
+
+    const max = lyricsData.length ? lyricsData.length - 1 : 0;
+    let s, e;
+
+    if (shareEndIndex == null) {
+      const idx = Math.max(0, Math.min(shareStartIndex, max));
+      s = idx;
+      e = idx;
+    } else {
+      const minIdx = Math.min(shareStartIndex, shareEndIndex);
+      const maxIdx = Math.max(shareStartIndex, shareEndIndex);
+      s = Math.max(0, Math.min(minIdx, max));
+      e = Math.max(0, Math.min(maxIdx, max));
+    }
+
+    for (let i = s; i <= e && i < rows.length; i++) {
+      const row = rows[i];
+      if (!row) continue;
+      row.classList.add('share-select-range');
+      if (i === s) row.classList.add('share-select-start');
+      if (i === e) row.classList.add('share-select-end');
+    }
+  }
+
+  function getShareSelectionInfo() {
+    if (!lyricsData.length || shareStartIndex == null) return null;
+
+    const max = lyricsData.length - 1;
+    let s, e;
+
+    if (shareEndIndex == null) {
+      const idx = Math.max(0, Math.min(shareStartIndex, max));
+      s = idx;
+      e = idx;
+    } else {
+      const minIdx = Math.min(shareStartIndex, shareEndIndex);
+      const maxIdx = Math.max(shareStartIndex, shareEndIndex);
+      s = Math.max(0, Math.min(minIdx, max));
+      e = Math.max(0, Math.min(maxIdx, max));
+    }
+
+    const parts = [];
+    for (let i = s; i <= e; i++) {
+      if (!lyricsData[i]) continue;
+      let t = (lyricsData[i].text || '').trim();
+      if (!t && lyricsData[i].translation) {
+        t = String(lyricsData[i].translation).trim();
+      }
+      if (t) parts.push(t);
+    }
+    const phrase = parts.join('\n');
+
+    let timeMs = 0;
+    if (hasTimestamp && lyricsData[s] && typeof lyricsData[s].time === 'number') {
+      timeMs = Math.round(lyricsData[s].time * 1000);
+    } else {
+      const v = document.querySelector('video');
+      if (v && typeof v.currentTime === 'number') {
+        timeMs = Math.round(v.currentTime * 1000);
+      }
+    }
+
+    return { phrase, timeMs };
+  }
+
+  function normalizeToHttps(url) {
+    if (!url) return url;
+    try {
+      const u = new URL(url, 'https://lrchub.coreone.work');
+      u.protocol = 'https:';
+      return u.toString();
+    } catch (e) {
+      if (url.startsWith('http://')) {
+        return 'https://' + url.slice(7);
+      }
+      return url;
+    }
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      });
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+  }
+
+  async function finalizeShareSelection() {
+    const info = getShareSelectionInfo();
+    if (!info || !info.phrase) {
+      showToast('選択された歌詞が空です');
+      return;
+    }
+
+    const youtube_url = getCurrentVideoUrl();
+    const video_id = getCurrentVideoId();
+    const lang = (config.mainLang && config.mainLang !== 'original') ? config.mainLang : 'ja';
+
+    try {
+      const res = await new Promise(resolve => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'SHARE_REGISTER',
+            payload: {
+              youtube_url,
+              video_id,
+              phrase: info.phrase,
+              lang,
+              time_ms: info.timeMs
+            }
+          },
+          resolve
+        );
+      });
+
+      if (!res || !res.success) {
+        console.error('Share register failed:', res && res.error);
+        showToast('共有に失敗しました');
+        return;
+      }
+
+      let shareUrl = (res.data && res.data.share_url) || '';
+      shareUrl = normalizeToHttps(shareUrl);
+
+      if (!shareUrl && video_id) {
+        const sec = Math.round((info.timeMs || 0) / 1000);
+        shareUrl = `https://lrchub.coreone.work/s/${video_id}/${sec}`;
+      }
+
+      if (shareUrl) {
+        await copyToClipboard(shareUrl);
+        showToast('共有リンクをコピーしました');
+      } else {
+        showToast('共有リンクの取得に失敗しました');
+      }
+    } catch (e) {
+      console.error('Share register error', e);
+      showToast('共有に失敗しました');
+    } finally {
+      shareMode = false;
+      shareStartIndex = null;
+      shareEndIndex = null;
+      document.body.classList.remove('ytm-share-select-mode');
+      if (ui.shareBtn) ui.shareBtn.classList.remove('share-active');
+      updateShareSelectionHighlight();
+    }
+  }
 
   const tick = async () => {
     if (!document.getElementById('my-mode-toggle')) {
@@ -1173,7 +1564,6 @@
     document.body.classList.add('ytm-custom-layout');
     initLayout();
 
-    // ensure slider host is inset so visual track lines up with rounded corners
     (function patchSliders() {
       const sliders = document.querySelectorAll('ytmusic-player-bar .middle-controls tp-yt-paper-slider');
       sliders.forEach(s => {
@@ -1182,9 +1572,7 @@
           s.style.paddingLeft = '20px';
           s.style.paddingRight = '20px';
           s.style.minWidth = '0';
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) { }
       });
     })();
 
@@ -1198,6 +1586,11 @@
       dynamicLines = null;
       lyricsCandidates = null;
       selectedCandidateId = null;
+      shareMode = false;
+      shareStartIndex = null;
+      shareEndIndex = null;
+      document.body.classList.remove('ytm-share-select-mode');
+      if (ui.shareBtn) ui.shareBtn.classList.remove('share-active');
       updateMetaUI(meta);
       refreshCandidateMenu();
       if (ui.lyrics) ui.lyrics.scrollTop = 0;
