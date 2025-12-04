@@ -1005,6 +1005,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar .right-controls .toggle-player-p
     right: 56px;
     transform-origin: top right;
 }
+}
 
 /* フォールバック通知トースト */
 #ytm-fallback-toast,
