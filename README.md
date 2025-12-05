@@ -1,14 +1,19 @@
 ## YouTube Music Modern UI for Firefox
 [YouTube Music](https://music.youtube.com) のWeb版再生UIをよりモダンに変更する**Firefox 拡張機能**です。  
-[Naikaku](https://github.com/naikaku1) 氏によってChrome向けに開発された [YouTube Music Moden UI](https://github.com/naikaku1/YouTube_Music-Moden-UI) を [cashew](https://github.com/miot26) が独自にFirefox向けに改変しています。
+[Naikaku](https://github.com/naikaku1) 氏によってChrome向けに開発された [YTM Modern UI](https://github.com/naikaku1/YTM-Modern-UI) を [cashew](https://github.com/miot26) が独自にFirefox向けに改変しています。
 
-<img src=".github/image/thumbnail.png" width="75%">
+
 
 ### ✨ Features
 - **リアルタイム歌詞同期**: [LRCLIB](https://lrclib.net/) を利用した歌詞同期機能
 - **ガラスモーフィズムUI**: 半透明で浮遊感のあるガラスデザインに統一
 - **操作性**: ImmersionモードをOFFにすることでキューの確認や検索が可能
 - **読みやすいフォント**: "Inter"，"Noto Sans JP" を使用して読みやすい文字に
+
+| 歌詞表示 | キュー表示 | 再生ハイライト表示 |
+| ---- | ---- | ---- |
+| <img src=".github/image/thumbnail.png"> | <img src=".github/image/queue.png"> | <img src=".github/image/stats.png"> |
+
 
 ### 🛠️ Installation Guide
 この拡張機能は，Firefox「**デバッグモード**」においてのみ使用できます。  
