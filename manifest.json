@@ -8,6 +8,7 @@
   ],
   "host_permissions": [
     "https://music.youtube.com/*",
+    "https://www.youtube.com/*",
     "https://lrclib.net/*",
     "https://lrchub.coreone.work/*",
     "http://lrchub.coreone.work/*",

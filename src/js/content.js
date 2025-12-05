@@ -104,7 +104,10 @@ const TEXTS = {
     queuePanel: null,
     settingsBtn: null,
     lyricsBtn: null,
-    shareBtn: null
+    shareBtn: null,
+    // ★ 追加: アーティスト切り替え関連
+    switchBtn: null,
+    switchMenu: null
   };
 
   let hideTimer = null;
@@ -112,6 +115,8 @@ const TEXTS = {
   let deleteDialogGlobalSetup = false;
   let settingsOutsideClickSetup = false;
   let toastTimer = null;
+  // ★ 追加
+  let switchMenuGlobalSetup = false;
 
   const handleInteraction = () => {
     if (!ui.btnArea) return;
@@ -1024,6 +1029,40 @@ const TEXTS = {
     }
   };
 
+  // ★ 追加: 現在の再生位置（秒）
+  const getCurrentPlaybackSeconds = () => {
+    const v = document.querySelector('video');
+    if (!v || typeof v.currentTime !== 'number') return 0;
+    return Math.max(0, Math.floor(v.currentTime) + 2);
+  };
+
+  // ★ 追加: 別の videoId に、同じ再生位置から切り替える
+  function switchToAlternativeVideo(videoId, startSeconds) {
+    if (!videoId) return;
+    const sec = Math.max(0, Math.floor(startSeconds || 0));
+
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set('v', videoId);
+
+      if (sec > 0) {
+        // YouTube / YouTube Music で開始位置指定
+        u.searchParams.set('t', String(sec));
+      } else {
+        u.searchParams.delete('t');
+      }
+
+      // 念のため music ドメインに統一
+      u.hostname = 'music.youtube.com';
+      location.href = u.toString();
+    } catch (e) {
+      console.warn('switchToAlternativeVideo URL build failed', e);
+      const base = `https://music.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+      const url = sec > 0 ? `${base}&t=${sec}` : base;
+      location.href = url;
+    }
+  }
+
   const createEl = (tag, id, cls, html) => {
     const el = document.createElement(tag);
     if (id) el.id = id;
@@ -1435,6 +1474,41 @@ const TEXTS = {
     refreshLockMenu();
   }
 
+  // ★ 追加: アーティスト切り替えメニューのセットアップ
+  function setupSwitchArtistMenu(switchBtn) {
+    if (!ui.btnArea || ui.switchMenu) return;
+    ui.btnArea.style.position = 'relative';
+
+    const menu = createEl(
+      'div',
+      'ytm-switch-menu',
+      'ytm-upload-menu ytm-switch-menu',
+      `
+        <div class="ytm-upload-menu-title">Artist Switch</div>
+        <div class="ytm-upload-menu-subtitle">別アーティストの同じ曲を選択</div>
+        <div class="ytm-switch-menu-list"></div>
+      `
+    );
+    ui.btnArea.appendChild(menu);
+    ui.switchMenu = menu;
+
+    // 外側クリックで閉じる
+    if (!switchMenuGlobalSetup) {
+      switchMenuGlobalSetup = true;
+      document.addEventListener(
+        'click',
+        (ev) => {
+          if (!ui.switchMenu) return;
+          if (!ui.switchMenu.classList.contains('visible')) return;
+          if (ui.switchMenu.contains(ev.target)) return;
+          if (ui.switchBtn && ui.switchBtn.contains(ev.target)) return;
+          ui.switchMenu.classList.remove('visible');
+        },
+        true
+      );
+    }
+  }
+
   function setupDeleteDialog(trashBtn) {
     if (!ui.btnArea || ui.deleteDialog) return;
     ui.btnArea.style.position = 'relative';
@@ -1682,9 +1756,17 @@ const TEXTS = {
     const btns = [];
     const lyricsBtnConfig = { txt: 'Lyrics', cls: 'lyrics-btn', click: () => { } };
     const shareBtnConfig = { txt: 'Share', cls: 'share-btn', click: onShareButtonClick };
-    
-    const replayBtnConfig = {
-      txt: '📊',
+
+    // ★ 追加: アーティスト切り替えボタン
+    const switchArtistBtnConfig = {
+      txt: 'Artist⇄',
+      cls: 'switch-artist-btn',
+      click: onSwitchArtistClick
+    };
+
+    const trashBtnConfig = { txt: '🗑️', cls: 'icon-btn', click: () => { } };
+    const settingsBtnConfig = {
+      txt: '⚙️',
       cls: 'icon-btn',
       click: () => {
         if (!ui.replayPanel) {
@@ -1695,10 +1777,7 @@ const TEXTS = {
       }
     };
 
-    const trashBtnConfig = { txt: '🗑️', cls: 'icon-btn', click: () => { } };
-    const settingsBtnConfig = { txt: '⚙️', cls: 'icon-btn', click: () => { initSettings(); ui.settings.classList.toggle('active'); } };
-
-    btns.push(lyricsBtnConfig, shareBtnConfig, replayBtnConfig, trashBtnConfig, settingsBtnConfig);
+    btns.push(lyricsBtnConfig, shareBtnConfig, switchArtistBtnConfig, trashBtnConfig, settingsBtnConfig);
 
     btns.forEach(b => {
       const btn = createEl('button', '', `ytm-glass-btn ${b.cls || ''}`, b.txt);
@@ -1710,6 +1789,11 @@ const TEXTS = {
       }
       if (b === shareBtnConfig) {
         ui.shareBtn = btn;
+      }
+      // ★ 追加: アーティスト切り替えボタン
+      if (b === switchArtistBtnConfig) {
+        ui.switchBtn = btn;
+        setupSwitchArtistMenu(btn);
       }
       if (b === trashBtnConfig) setupDeleteDialog(btn);
       if (b === settingsBtnConfig) ui.settingsBtn = btn;
@@ -1984,6 +2068,115 @@ const TEXTS = {
       if (ui.shareBtn) ui.shareBtn.classList.remove('share-active');
     }
     updateShareSelectionHighlight();
+  }
+
+  // ★ 追加: アーティスト切り替えボタン押下時
+  async function onSwitchArtistClick(ev) {
+    if (ev) ev.stopPropagation();
+
+    if (!ui.switchMenu) {
+      if (ui.switchBtn) {
+        setupSwitchArtistMenu(ui.switchBtn);
+      } else {
+        showToast('メニューを表示できませんでした');
+        return;
+      }
+    }
+    if (!ui.switchMenu) return;
+
+    const meta = getMetadata();
+    if (!meta || !meta.title) {
+      showToast('曲情報が取得できません');
+      return;
+    }
+
+    const listEl = ui.switchMenu.querySelector('.ytm-switch-menu-list');
+    if (!listEl) return;
+
+    // すでに開いていればトグルで閉じる
+    if (ui.switchMenu.classList.contains('visible')) {
+      ui.switchMenu.classList.remove('visible');
+      return;
+    }
+
+    ui.switchMenu.classList.add('visible');
+    listEl.innerHTML = `
+      <div class="ytm-upload-menu-item">
+        <span class="ytm-upload-menu-item-icon">⏳</span>
+        <span>候補を検索中...</span>
+      </div>
+    `;
+
+    try {
+      const res = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: 'GET_ALT_VIDEOS',
+            payload: {
+              track: meta.title,
+              artist: meta.artist
+            }
+          },
+          resolve
+        );
+      });
+
+      if (!res || !res.success) {
+        console.warn('GET_ALT_VIDEOS failed', res && res.error);
+        listEl.innerHTML = `
+          <div class="ytm-upload-menu-item">
+            <span class="ytm-upload-menu-item-icon">⚠️</span>
+            <span>検索に失敗しました</span>
+          </div>
+        `;
+        return;
+      }
+
+      const items = Array.isArray(res.items) ? res.items : [];
+      if (!items.length) {
+        listEl.innerHTML = `
+          <div class="ytm-upload-menu-item">
+            <span class="ytm-upload-menu-item-icon">🙇</span>
+            <span>同じ曲名の別アーティストが見つかりませんでした</span>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = '';
+
+      items.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.className = 'ytm-upload-menu-item';
+        btn.innerHTML = `
+          <span class="ytm-upload-menu-item-icon">🎵</span>
+          <span>
+            <div>${item.title || ''}</div>
+            <div style="font-size:11px;opacity:0.8;">
+              ${item.artist || ''}${item.durationText ? ' ・ ' + item.durationText : ''}
+            </div>
+          </span>
+        `;
+
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          ui.switchMenu.classList.remove('visible');
+          // クリック時点の再生位置からスタート
+          const sec = getCurrentPlaybackSeconds();
+          switchToAlternativeVideo(item.videoId, sec);
+        };
+
+        listEl.appendChild(btn);
+      });
+    } catch (e) {
+      console.error('onSwitchArtistClick error', e);
+      listEl.innerHTML = `
+        <div class="ytm-upload-menu-item">
+          <span class="ytm-upload-menu-item-icon">⚠️</span>
+          <span>エラーが発生しました</span>
+        </div>
+      `;
+    }
   }
 
   function handleShareLineClick(index) {

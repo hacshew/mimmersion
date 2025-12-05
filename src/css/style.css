@@ -871,6 +871,15 @@ body:not(.ytm-custom-layout) ytmusic-player-bar #hover-time-info-new {
   font-size: 12px;
 }
 
+/* ★ 追加: アーティスト切り替えメニュー内のリスト */
+.ytm-switch-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 /* 歌詞削除ダイアログ */
 .ytm-confirm-dialog {
   position: absolute;
@@ -1034,7 +1043,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar #hover-time-info-new {
     bottom: auto;
     right: 56px;
     transform-origin: top right;
-}
+  }
 }
 
 
@@ -1062,6 +1071,7 @@ body:not(.ytm-custom-layout) ytmusic-player-bar #hover-time-info-new {
   opacity: 1;
   transform: translateY(4px);
 }
+
 .ytm-upload-menu-item.ytm-upload-menu-item-disabled {
   opacity: 0.4;
   cursor: not-allowed;
