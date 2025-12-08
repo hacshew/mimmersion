@@ -110,7 +110,7 @@
         syncButtonEl = document.querySelector('#dr-cloud-sync-sync-btn');
         return;
       }
-    
+
       const root = document.createElement('div');
       root.id = 'dr-cloud-sync-panel';
       panelRoot = root;
@@ -287,6 +287,9 @@
       statusEl = status;
       tokenInputEl = tokenInput;
       syncButtonEl = syncBtn;
+
+      // ★ パネルを初めて出したときに状態を読み込む
+      loadInitialState();
     }
 
     function saveRecoveryToken(token) {
@@ -350,6 +353,7 @@
       });
     }
 
+    // ★ 戻り値を { ok, ... } にして結果が分かるようにする
     async function syncNow() {
       try {
         const history = await getLocalHistory();
@@ -366,7 +370,7 @@
         if (!resp || !resp.ok) {
           const errMsg = resp && resp.error ? resp.error : '同期エラー';
           setStatus('同期に失敗しました: ' + errMsg);
-          return;
+          return { ok: false, error: errMsg, raw: resp || null };
         }
 
         const mergedHistory = Array.isArray(resp.mergedHistory)
@@ -389,12 +393,20 @@
         setStatus(
           `同期完了: ローカル ${history.length} 件 → サーバー ${serverCount} 件\n最終同期: ${lastSyncDate.toLocaleString()}`
         );
+
+        return {
+          ok: true,
+          mergedHistory: mergedHistory || null,
+          lastSyncAt: lastSyncAtMs,
+          serverCount,
+        };
       } catch (e) {
         console.error('[DailyReplay Cloud] sync error', e);
+        const msg = e && e.message ? e.message : String(e);
         setStatus(
-          '同期中にエラーが発生しました: ' +
-            (e && e.message ? e.message : String(e))
+          '同期中にエラーが発生しました: ' + msg
         );
+        return { ok: false, error: msg, raw: null };
       }
     }
 
@@ -428,22 +440,34 @@
       });
     }
 
+    // ★ 起動時にパネルを出さず、バックグラウンドで静かに同期だけ行う
     function init() {
       if (window.__drCloudSyncInitialized) return;
       window.__drCloudSyncInitialized = true;
 
-      const start = () => {
-        createPanel();
-        loadInitialState();
+      const startAutoSync = () => {
+        // 起動時自動同期（トークンが無いときはサーバー側で NO_TOKEN になり、トーストも出さない）
+        syncNow()
+          .then((result) => {
+            if (!result || !result.ok) return;
+            // 同期に成功したときだけ右上トースト
+            if (typeof showToast === 'function') {
+              showToast('Daily Replay のクラウド同期が完了しました');
+            }
+          })
+          .catch((e) => {
+            console.warn('[DailyReplay Cloud] auto sync failed', e);
+          });
       };
 
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', start);
+        document.addEventListener('DOMContentLoaded', startAutoSync);
       } else {
-        start();
+        startAutoSync();
       }
     }
 
+    // Cloud ボタンから開くときだけパネルを生成・表示
     function openPanel() {
       createPanel();
       if (panelRoot) {
@@ -1099,6 +1123,8 @@
       });
     }
   };
+
+
 
   // ===================== DeepL / LRC / 翻訳関連 =====================
 
