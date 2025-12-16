@@ -1903,9 +1903,7 @@ body.ytm-custom-layout ytmusic-player-bar
   pointer-events: auto;
 }
 
-/* --- ここから下を追加 --- */
 
-/* IMMERSIONボタンのアクティブ状態（修正版：拡大なし） */
 #my-mode-toggle {
   transition: all 0.3s ease;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1916,6 +1914,23 @@ body.ytm-custom-layout ytmusic-player-bar
   color: #000 !important;
   font-weight: 800 !important;
   border-color: #fff !important;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.6); /* 白く光る */
-  /* transform: scale(1.05); ← これを削除しました */
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.6); 
+}
+
+.ytm-upload-menu,
+.ytm-upload-menu-title,
+.ytm-upload-menu-subtitle,
+.ytm-upload-menu-item {
+  color: #ffffff !important;
+}
+
+
+.ytm-confirm-dialog,
+.ytm-confirm-title,
+.ytm-confirm-message {
+  color: #ffffff !important;
+}
+
+.ytm-upload-menu-subtitle {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
