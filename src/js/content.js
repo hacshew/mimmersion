@@ -41,7 +41,7 @@
       settings_title: "設定",
       settings_ui_lang: "UI言語 / Language",
       settings_trans: "歌詞翻訳機能を使う",
-      settings_shared_trans: "共有翻訳を使う（APIキー不要）",
+      settings_shared_trans: "共有翻訳を使う",
       settings_main_lang: "メイン言語 (大きく表示)",
       settings_sub_lang: "サブ言語 (小さく表示)",
       settings_save: "保存",
@@ -2575,6 +2575,13 @@
           <span>${t('settings_shared_trans')}</span>
           <input type="checkbox" id="shared-trans-toggle">
         </label>
+<span>
+  文字数増加の協力お願いします（
+  <a href="https://immersionproject.coreone.work/" target="_blank" rel="noopener noreferrer">
+    こちら
+  </a>
+  ）。
+</span>
       </div>
 
       <div class="setting-item ytm-lang-section">
