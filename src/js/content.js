@@ -1252,6 +1252,26 @@
               this.syncQueue();
             }
           });
+        } else {
+          // Remember "no lyrics" result so Up Next can show an orange hint.
+          // But don't overwrite already cached real lyrics.
+          storage.get(key).then((cached0) => {
+            const existing = cached0 && typeof cached0.lyrics === 'string' ? cached0.lyrics : '';
+            const hasReal = existing && existing.trim() && existing !== NO_LYRICS_SENTINEL;
+            if (hasReal) return;
+            return storage.set(key, {
+              lyrics: NO_LYRICS_SENTINEL,
+              dynamicLines: null,
+              candidates: res.candidates || null,
+              noLyrics: true,
+              fetchedAt: Date.now(),
+            });
+          }).then(() => {
+            // Refresh highlight instantly if the panel is open
+            if (ui.queuePanel && ui.queuePanel.classList.contains('visible')) {
+              this.syncQueue();
+            }
+          });
         }
       });
     },
@@ -1261,14 +1281,28 @@
       storage.get(key).then(cached => {
         if (!row.isConnected) return;
         const lyr = cached && typeof cached.lyrics === 'string' ? cached.lyrics : '';
-        const ok = lyr && lyr.trim() && lyr !== NO_LYRICS_SENTINEL;
-        if (!ok) return;
+        const noLyrics = (cached && cached.noLyrics) || (lyr === NO_LYRICS_SENTINEL);
+        const hasLyrics = (typeof lyr === 'string' && lyr.trim() && lyr !== NO_LYRICS_SENTINEL);
 
-        // Slight glowing yellow-green border
-        row.dataset.lyricsLoaded = '1';
-        row.style.border = '1px solid rgba(190, 255, 110, 0.65)';
-        row.style.boxShadow = '0 0 0 1px rgba(190, 255, 110, 0.20), 0 0 14px rgba(190, 255, 110, 0.14)';
-        row.style.borderRadius = row.style.borderRadius || '12px';
+        if (hasLyrics) {
+          // Slight glowing yellow-green border (lyrics ready)
+          row.dataset.lyricsLoaded = '1';
+          row.dataset.lyricsMissing = '';
+          row.style.border = '1px solid rgba(190, 255, 110, 0.65)';
+          row.style.boxShadow = '0 0 0 1px rgba(190, 255, 110, 0.20), 0 0 14px rgba(190, 255, 110, 0.14)';
+          row.style.borderRadius = row.style.borderRadius || '12px';
+          return;
+        }
+
+        if (noLyrics) {
+          // Orange border (no lyrics found)
+          row.dataset.lyricsLoaded = '';
+          row.dataset.lyricsMissing = '1';
+          row.style.border = '1px solid rgba(255, 170, 60, 0.70)';
+          row.style.boxShadow = '0 0 0 1px rgba(255, 170, 60, 0.22), 0 0 14px rgba(255, 170, 60, 0.16)';
+          row.style.borderRadius = row.style.borderRadius || '12px';
+          return;
+        }
       });
     },
     init: function () {
