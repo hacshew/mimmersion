@@ -1465,3 +1465,7 @@ body.ytm-custom-layout ytmusic-popup-container tp-yt-iron-dropdown {
   color: #ff5555;
   border-color: rgba(255, 60, 60, 0.3);
 }
+
+tp-yt-paper-toast#toast.paper-toast-open {
+    z-index: 999999 !important;
+}
