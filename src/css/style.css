@@ -374,13 +374,13 @@ body.ytm-custom-layout #ytm-share-hint {
 /* --- プレイヤーバー --- */
 body.ytm-custom-layout ytmusic-player-bar {
   display: grid !important;
-  grid-template-columns: 1fr 1.75fr 1fr !important;
+  grid-template-columns: 1fr auto 1fr !important;
   position: fixed !important;
   bottom: 40px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
   width: 95% !important;
-  max-width: 1400px;
+  max-width: 1000px;
   height: 82.5px !important;
   padding: 0 40px !important;
   box-sizing: border-box;
@@ -402,38 +402,13 @@ body.ytm-custom-layout ytmusic-player-bar .background,
 body.ytm-custom-layout ytmusic-player-bar #container,
 body.ytm-custom-layout ytmusic-player-bar::before,
 body.ytm-custom-layout ytmusic-player-bar::after,
-body.ytm-custom-layout ytmusic-player-bar .thumbnail-image-wrapper {
-  display: none !important;
-}
-
-/* Ensure info text is visible */
-body.ytm-custom-layout ytmusic-player-bar .content-info-wrapper {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  align-items: flex-start !important;
-  width: 100% !important;
-  margin: 0 !important;
-  min-height: 70px !important;
-  overflow: visible !important;
-  z-index: 10 !important;
-}
-
+body.ytm-custom-layout ytmusic-player-bar .thumbnail-image-wrapper
+body.ytm-custom-layout ytmusic-player-bar .content-info-wrapper,
 body.ytm-custom-layout ytmusic-player-bar yt-formatted-string.title,
-body.ytm-custom-layout ytmusic-player-bar .title {
-  font-size: 17.5px !important;
-  font-weight: 700 !important;
-  color: #fff !important;
-  margin-bottom: 4px !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  white-space: normal !important;
-  max-width: 100% !important;
-}
-body.ytm-custom-layout ytmusic-player-bar .byline {
-  font-size: 13px !important;
-  color: rgba(255, 255, 255, 0.7) !important;
-  overflow: visible !important;
+body.ytm-custom-layout ytmusic-player-bar .title,
+body.ytm-custom-layout ytmusic-player-bar .byline,
+body.ytm-custom-layout ytmusic-player-bar .subtitle {
+  display: none !important;
 }
 
 /* Control Group Layout */
