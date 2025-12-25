@@ -2359,6 +2359,28 @@
     }
   };
 
+  // === BG からの後追いメタ更新（遅い方待ちをやめた時用）===
+  // GitHub で先に歌詞だけ返ってきた後に、LRCHub 側の candidates/config/requests が来たら UI を更新する
+  chrome.runtime.onMessage.addListener((msg) => {
+    try {
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type !== 'LYRICS_META_UPDATE') return;
+      const p = msg.payload || {};
+      const curVid = getCurrentVideoId();
+      if (p.video_id && curVid && p.video_id !== curVid) return;
+
+      if (Array.isArray(p.candidates)) lyricsCandidates = p.candidates;
+      if (p.config !== undefined) lyricsConfig = p.config;
+      if (Array.isArray(p.requests)) lyricsRequests = p.requests;
+
+      // candidates/config が更新されたらメニューを再描画
+      refreshCandidateMenu();
+      refreshLockMenu();
+    } catch (e) {
+      // ignore
+    }
+  });
+
   const createEl = (tag, id, cls, html) => {
     const el = document.createElement(tag);
     if (id) el.id = id;
@@ -3531,7 +3553,7 @@ function renderSettingsPanel() {
 
           const safeFetchText = async (url) => {
             try {
-              const r = await fetch(url, { cache: 'no-store' });
+              const r = await fetch(url, { cache: 'force-cache' });
               if (!r.ok) return '';
               return (await r.text()) || '';
             } catch (e) {
@@ -3541,7 +3563,7 @@ function renderSettingsPanel() {
 
           const safeFetchJson = async (url) => {
             try {
-              const r = await fetch(url, { cache: 'no-store' });
+              const r = await fetch(url, { cache: 'force-cache' });
               if (!r.ok) return null;
               return await r.json();
             } catch (e) {

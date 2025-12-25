@@ -797,6 +797,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   // 歌詞取得
   if (req.type === 'GET_LYRICS') {
     const { track, artist, youtube_url, video_id } = req.payload || {};
+    const tabId = sender && sender.tab ? sender.tab.id : null;
 
     console.log('[BG] GET_LYRICS (Hub + GitHub)', { track, artist });
 
@@ -818,73 +819,134 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
           .catch(e => ({ source: 'git', error: e }));
       }
 
-      const results = await Promise.all([pHub, pGit]);
+      // 返答を一度だけ返す（遅い方を待たない）
+      let responded = false;
+      const sendOnce = (payload) => {
+        if (responded) return;
+        responded = true;
+        sendResponse(payload);
+      };
 
-      const hubRes = results.find(r => r.source === 'hub');
-      const gitRes = results.find(r => r.source === 'git');
+      // LRCHub の candidates/config/requests は、GitHub が先に返っても後追いで UI 更新できるように push する
+      const pushMetaUpdate = (meta) => {
+        if (!tabId) return;
+        try {
+          chrome.tabs.sendMessage(tabId, { type: 'LYRICS_META_UPDATE', payload: meta });
+        } catch (e) {
+          // ignore
+        }
+      };
 
-      // 候補・config・requests は LRCHub のみ（LrcLib 廃止）
+      // 並列実行（"両方待ち" をやめる）
+      let hubRes = null;
+      let gitRes = null;
+
+      const handleHub = async () => {
+        const r = await pHub;
+        hubRes = r;
+
+        let sharedCandidates = [];
+        let sharedConfig = null;
+        let sharedRequests = [];
+
+        if (hubRes && !hubRes.error && hubRes.data) {
+          if (Array.isArray(hubRes.data.candidates)) sharedCandidates = hubRes.data.candidates.slice();
+          if (hubRes.data.config) sharedConfig = hubRes.data.config;
+          if (Array.isArray(hubRes.data.requests)) sharedRequests = hubRes.data.requests.slice();
+        }
+
+        const hasCandidates = sharedCandidates.length > 0;
+
+        // まだ返してない & LRCHub に歌詞がある → 即返す
+        if (!responded && hubRes && !hubRes.error && hubRes.data && hubRes.data.lyrics && hubRes.data.lyrics.trim()) {
+          const d = hubRes.data;
+          console.log('[BG] Won (fast): LRCHub');
+          sendOnce({
+            success: true,
+            lyrics: d.lyrics,
+            dynamicLines: d.dynamicLines || null,
+            hasSelectCandidates: d.hasSelectCandidates || hasCandidates,
+            candidates: sharedCandidates,
+            config: d.config || null,
+            requests: d.requests || [],
+            githubFallback: false,
+          });
+          return;
+        }
+
+        // 既に GitHub で歌詞を返していたら、候補/設定だけ後追いで通知
+        if (responded && (hasCandidates || sharedConfig || (sharedRequests && sharedRequests.length))) {
+          const vid = video_id || extractVideoIdFromUrl(youtube_url);
+          pushMetaUpdate({
+            video_id: vid,
+            hasSelectCandidates: hasCandidates,
+            candidates: sharedCandidates,
+            config: sharedConfig,
+            requests: sharedRequests,
+          });
+        }
+      };
+
+      const handleGit = async () => {
+        const r = await pGit;
+        gitRes = r;
+
+        if (
+          !responded &&
+          gitRes &&
+          !gitRes.error &&
+          gitRes.data &&
+          typeof gitRes.data.lyrics === 'string' &&
+          gitRes.data.lyrics.trim()
+        ) {
+          const d = gitRes.data;
+          console.log('[BG] Won (fast): GitHub');
+          // ※ candidates/config/requests は後から LRCHub が来たら pushMetaUpdate で更新
+          sendOnce({
+            success: true,
+            lyrics: d.lyrics,
+            dynamicLines: d.dynamicLines || null,
+            hasSelectCandidates: false,
+            candidates: [],
+            config: null,
+            requests: [],
+            githubFallback: true,
+          });
+        }
+      };
+
+      const hubTask = handleHub();
+      const gitTask = handleGit();
+
+      await Promise.allSettled([hubTask, gitTask]);
+
+      // どちらかで返していたら終了
+      if (responded) return;
+
+      // ここに来るのは「どっちも歌詞が取れなかった」だけ。候補だけでも返す（あれば）
       let sharedCandidates = [];
       let sharedConfig = null;
       let sharedRequests = [];
 
       if (hubRes && !hubRes.error && hubRes.data) {
-        if (Array.isArray(hubRes.data.candidates)) {
-          sharedCandidates.push(...hubRes.data.candidates);
-        }
+        if (Array.isArray(hubRes.data.candidates)) sharedCandidates = hubRes.data.candidates.slice();
         if (hubRes.data.config) sharedConfig = hubRes.data.config;
-        if (Array.isArray(hubRes.data.requests)) sharedRequests = hubRes.data.requests;
+        if (Array.isArray(hubRes.data.requests)) sharedRequests = hubRes.data.requests.slice();
       }
 
       const hasCandidates = sharedCandidates.length > 0;
 
-      // A) LRCHub が勝ち
-      if (hubRes && !hubRes.error && hubRes.data && hubRes.data.lyrics && hubRes.data.lyrics.trim()) {
-        const d = hubRes.data;
-        console.log('[BG] Won: LRCHub');
-        sendResponse({
-          success: true,
-          lyrics: d.lyrics,
-          dynamicLines: d.dynamicLines || null,
-          hasSelectCandidates: d.hasSelectCandidates || hasCandidates,
-          candidates: sharedCandidates,
-          config: d.config || null,
-          requests: d.requests || [],
-          githubFallback: false,
-        });
-        return;
-      }
-
-      // B) GitHub が勝ち
-      if (
-        gitRes &&
-        !gitRes.error &&
-        gitRes.data &&
-        typeof gitRes.data.lyrics === 'string' &&
-        gitRes.data.lyrics.trim()
-      ) {
-        console.log('[BG] Won: GitHub');
-        sendResponse({
-          success: true,
-          lyrics: gitRes.data.lyrics,
-          dynamicLines: gitRes.data.dynamicLines || null,
-          hasSelectCandidates: hasCandidates,
-          candidates: sharedCandidates,
-          config: sharedConfig,
-          requests: sharedRequests,
-          githubFallback: true,
-        });
-        return;
-      }
-
       console.log('[BG] No lyrics found (Hub+GitHub)');
-      sendResponse({
+      sendOnce({
         success: false,
         lyrics: '',
         dynamicLines: null,
         hasSelectCandidates: hasCandidates,
         candidates: sharedCandidates,
+        config: sharedConfig,
+        requests: sharedRequests,
       });
+
     })();
 
     return true;
