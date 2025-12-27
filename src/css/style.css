@@ -151,7 +151,7 @@ body.ytm-custom-layout ytmusic-search-box input {
 }
 .ytm-glass-btn {
   padding: 8px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 15px; color: #fff; cursor: pointer; font-weight: 700; backdrop-filter: blur(10px);
+  border-radius: 9999px; color: #fff; cursor: pointer; font-weight: 700; backdrop-filter: blur(10px);
   font-size: 13px; transition: 0.2s;
 }
 .ytm-glass-btn:hover { background: rgba(255,255,255,0.25); transform: scale(1.02); }
