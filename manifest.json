@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Music Modern UI for Firefox",
+  "name": "Mimmersion",
   "version": "0.0.3",
   "description": "YouTube Musicをもっと美しく",
   "icons": {
@@ -9,7 +9,7 @@
 
   "browser_specific_settings": {
     "gecko": {
-      "id": "YTMusic-Modern-Firefox@miot26"
+      "id": "Mimmersion@miot26"
     }
   },
 

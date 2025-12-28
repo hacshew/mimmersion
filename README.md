@@ -10,7 +10,7 @@
 > ご利用は自己責任となります。
 > 
 #### 1. ファイルのダウンロード
-  1. [Releases](https://github.com/miot26/YTMusic-Modern-Firefox/releases) ページより，最新の `.zip` ファイルをダウンロード
+  1. [Releases](https://github.com/miot26/mimmersion/releases) ページより，最新の `.zip` ファイルをダウンロード
   2. ファイルを任意のフォルダに展開
 
 #### 2. Firefoxで読み込む
