@@ -161,6 +161,9 @@ body.ytm-custom-layout ytmusic-search-box {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
 }
 
 #ytm-custom-title {
@@ -170,8 +173,15 @@ body.ytm-custom-layout ytmusic-search-box {
   margin-bottom: 8px;
   line-height: 1.2;
   text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-  word-break: keep-all;
+  
+
+  word-break: normal; 
   overflow-wrap: break-word;
+  
+  width: 100%;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 #ytm-custom-artist {
