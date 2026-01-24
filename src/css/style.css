@@ -1,7 +1,7 @@
 /* フォント読み込み */
 @font-face {
   font-family: "InterVariable";
-  src: url("../assets/fonts/InterVariable.woff2") format("woff2");
+  src: url("../assets/fonts/InterVariable/InterVariable.woff2") format("woff2");
   font-weight: 100 900;
   font-stretch: 75% 125%;
   font-display: swap;
@@ -125,7 +125,7 @@ body.ytm-custom-layout ytmusic-search-box input {
   align-items: center;
 }
 #ytm-custom-title {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1.1;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
@@ -230,7 +230,7 @@ body.ytm-custom-layout ytmusic-search-box input {
   display: none;
 }
 .lyric-line {
-  font-size: 32.5px;
+  font-size: 30px;
   letter-spacing: -0.04em;
   font-weight: 800;
   color: rgba(255, 255, 255, 0.3);
