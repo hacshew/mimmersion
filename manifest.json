@@ -44,7 +44,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/assets/fonts/InterVariable/InterVariable.woff2"
       ],
       "matches": ["<all_urls>"]
     }
